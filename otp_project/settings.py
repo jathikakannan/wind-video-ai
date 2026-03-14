@@ -216,12 +216,16 @@ cloudinary.config(
     api_secret="lxT3ZOxeHI2nHUkSuqeEVBghZeg"
 )
 
+
+import os
 import firebase_admin
-from firebase_admin import credentials, auth, firestore
+from firebase_admin import credentials,auth,firestore
 
-cred = credentials.Certificate("firebase_key.json")
-firebase_admin.initialize_app(cred)
+firebase_key_path = "firebase_key.json"
 
+if os.path.exists(firebase_key_path):
+    cred = credentials.Certificate(firebase_key_path)
+    firebase_admin.initialize_app(cred)
 db = firestore.client()
 
 
