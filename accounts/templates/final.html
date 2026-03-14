@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Video Info</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: #eef2f7;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 40px auto;
+            background: #fff;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            padding: 30px;
+            overflow: hidden;
+        }
+        h2 {
+            text-align: center;
+            margin-bottom: 20px;
+            background: linear-gradient(90deg, #007bff, #28a745);
+            color: white;
+            padding: 15px 0;
+            border-radius: 10px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            color: white;
+            font-weight: bold;
+            font-size: 0.9rem;
+            margin-left: 10px;
+        }
+        .SD { background: #6c757d; }
+        .HD { background: #28a745; }
+        .FullHD { background: #007bff; }
+        .Ultra4K { background: #ff5722; }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin: 25px 0;
+        }
+        .info-card {
+            background: #f7f9fc;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 5px 10px rgba(0,0,0,0.05);
+        }
+        .info-card strong {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        video {
+            width: 100%;
+            border-radius: 10px;
+            margin-top: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        @media (max-width: 500px) {
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>
+            Video Information
+            {% if info.quality_label %}
+            <span class="badge {{ info.badge_class }}">{{ info.quality_label }}</span>
+            {% endif %}
+        </h2>
+
+        <div class="info-grid">
+            <div class="info-card"><strong>Resolution</strong>{{ info.width }} x {{ info.height }}</div>
+            <div class="info-card"><strong>FPS</strong>{{ info.fps }}</div>
+            <div class="info-card"><strong>Duration</strong>{{ info.duration }} s</div>
+            <div class="info-card"><strong>File Size</strong>{{ info.size_mb }} MB</div>
+            <div class="info-card"><strong>Bitrate</strong>{{ info.bitrate_kbps }} kbps</div>
+            <div class="info-card"><strong>Codec</strong>{{ info.codec }}</div>
+            <div class="info-card"><strong>Orientation</strong>{{ info.orientation }}</div>
+        </div>
+
+        {% if video_url %}
+        <video controls>
+            <source src="{{ video_url }}" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+        {% endif %}
+    </div>
+</body>
+</html>

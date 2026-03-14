@@ -1,0 +1,277 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+<title>File Upload</title>
+
+<style>
+body{
+    margin:0;
+    min-height:100vh;
+    background:url("{% static 'images/bg.jpg' %}") no-repeat center center fixed;
+    background-size:cover;
+    font-family:Arial, sans-serif;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+}
+
+/* Main container */
+.main-box{
+    width:650px;
+    background:rgba(255,255,255,0.97);
+    padding:30px;
+    border-radius:12px;
+    box-shadow:0 0 20px rgba(0,0,0,0.3);
+}
+
+/* Heading */
+h2{
+    text-align:center;
+    color:#4a60d4;
+    margin-bottom:25px;
+}
+
+/* Labels */
+label{
+    font-weight:bold;
+    margin-top:15px;
+    display:block;
+}
+
+/* Inputs */
+input[type="file"],
+input[type="number"],
+select{
+    width:100%;
+    padding:10px;
+    margin-top:6px;
+    border:1px solid #ccc;
+    border-radius:6px;
+}
+
+/* Buttons */
+.btn{
+    margin-top:20px;
+    padding:10px;
+    width:100%;
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
+    background:#4a60d4;
+    color:white;
+    font-weight:bold;
+    font-size:15px;
+}
+
+.btn:hover{
+    background:#3548b5;
+}
+
+/* Radio buttons */
+.radio-group{
+    margin-top:15px;
+}
+
+.radio-group label{
+    display:inline-block;
+    font-weight:normal;
+    margin-right:15px;
+}
+
+/* Extra buttons */
+.extra-btns{
+    display:none;
+    margin-top:20px;
+    text-align:center;
+}
+
+.extra-btns .btn{
+    width:auto;
+    margin:5px;
+    padding:8px 20px;
+}
+
+/* Table */
+table{
+    width:100%;
+    margin-top:25px;
+    border-collapse:collapse;
+}
+
+th,td{
+    border:1px solid #ccc;
+    padding:10px;
+    text-align:center;
+    font-size:14px;
+}
+
+th{
+    background:#4a60d4;
+    color:white;
+}
+
+h3{
+    margin-top:30px;
+    text-align:center;
+    color:#333;
+}
+</style>
+</head>
+
+<body>
+
+<div class="main-box">
+
+<div style="display:flex; justify-content:space-between; align-items:center;">
+    <h2>📁 File Upload System</h2>
+
+    <!-- 🔍 SEARCH BAR -->
+    
+    </form>
+</div>
+<form method="POST"
+      enctype="multipart/form-data"
+      onsubmit="return validateFile()">
+
+{% csrf_token %}
+
+<label>Maximum File Size (MB)</label>
+<input type="number"
+       id="maxSize"
+       value="5"
+       min="1"
+       max="100"
+       required>
+
+<label>Select File Format</label>
+<select name="format" id="format" required>
+    <option value="pdf">PDF</option>
+    <option value="txt">TXT</option>
+    <option value="docx">DOCX</option>
+    <option value="video">VIDEO</option>
+</select>
+
+<label>Choose File</label>
+<input type="file" name="file" id="fileInput" required>
+
+
+<!-- ⭐ NEW FIELD: DECODING METHOD -->
+
+<label>Select Decoding Method</label>
+<select name="decoding_method" id="decoding_method">
+    <option value="wind">WIND</option>
+    <option value="beam">Beam Search</option>
+    <option value="greedy">Greedy</option>
+</select>
+
+
+<!-- ⭐ NEW FIELD: REFERENCE TEXT -->
+
+<label>Reference Text (Ground Truth)</label>
+<textarea 
+    name="reference_text"
+    rows="3"
+    placeholder="Enter expected speech text for WER comparison"
+    style="width:100%; padding:10px; margin-top:6px; border:1px solid #ccc; border-radius:6px;">
+</textarea>
+
+
+<button type="submit" class="btn">Upload</button>
+
+</form>
+<div class="radio-group">
+<label>
+  <input type="radio" name="storage" value="local" checked> Local
+</label>
+<label>
+  <input type="radio" name="storage" value="cloud"> Cloud
+</label>
+</div>
+
+<div class="radio-group">
+<label>Do you want to continue?</label>
+<input type="radio" name="cont" onclick="showButtons(true)"> Yes
+<input type="radio" name="cont" onclick="showButtons(false)"> No
+</div>
+
+<div class="extra-btns" id="extraBtns">
+<button class="btn" onclick="submitData()">Submit</button>
+<button class="btn" onclick="clearTable()">Clear</button>
+<button class="btn" onclick="editPage()">Edit</button>
+</div>
+
+<h3>Uploaded Files</h3>
+<table id="fileTable">
+<tr>
+    <th>Name</th>
+    <th>Type</th>
+    <th>Size (MB)</th>
+    <th>Date</th>
+</tr>
+
+{% for f in files %}
+<tr>
+    <td>{{ f.title }}</td>
+    <td>{{ f.file_type }}</td>
+    <td>{{ f.size_mb|floatformat:2 }}</td>
+    <td>{{ f.uploaded_at }}</td>
+    
+</tr>
+{% empty %}
+<tr>
+    <td colspan="5">No files uploaded yet</td>
+</tr>
+{% endfor %}
+</table>
+
+</div>
+
+<script>
+function validateFile(){
+    let fileInput = document.getElementById("fileInput");
+    let maxSize = document.getElementById("maxSize").value;
+    let format = document.getElementById("format").value.toLowerCase();
+
+    if(fileInput.files.length === 0){
+        alert("Please select a file!");
+        return false;
+    }
+
+    let file = fileInput.files[0];
+    let sizeMB = file.size / (1024*1024);
+    let ext = file.name.split('.').pop().toLowerCase();
+
+    if(sizeMB > maxSize){
+        alert("File exceeds " + maxSize + " MB limit!");
+        return false;
+    }
+
+    let formats = {
+        pdf:["pdf"],
+        txt:["txt"],
+        docx:["docx"],
+        video:["mp4","avi","mov","mkv"]
+    };
+
+    if(!formats[format] || !formats[format].includes(ext)){
+        alert("Selected format does not match file!");
+        return false;
+    }
+
+    return true;
+}
+
+function showButtons(show){
+    document.getElementById("extraBtns").style.display = show ? "block" : "none";
+}
+
+function submitData(){ alert("Submitted successfully!"); }
+function clearTable(){
+    location.reload();
+}
+function editPage(){ alert("Edit mode enabled!"); }
+</script>
+
+</body>
+</html>

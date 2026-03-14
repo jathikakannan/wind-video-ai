@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+<meta charset="UTF-8">
+<title>AI Video Analysis Dashboard</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+
+<style>
+/* === KEEP YOUR EXISTING CSS AS IS === */
+body{
+    font-family:'Roboto',sans-serif;
+    background:linear-gradient(135deg,#eef2f7,#dde6f3);
+    margin:0;
+    padding:30px;
+}
+h2{
+    text-align:center;
+    background:linear-gradient(90deg,#007bff,#00c6ff);
+    color:white;
+    padding:18px;
+    border-radius:12px;
+    margin-bottom:35px;
+    letter-spacing:1px;
+    box-shadow:0 5px 15px rgba(0,0,0,0.15);
+}
+.summary-container{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:20px;
+    margin-bottom:30px;
+}
+.card{
+    background:white;
+    padding:20px;
+    border-radius:10px;
+    text-align:center;
+    box-shadow:0 5px 15px rgba(0,0,0,0.15);
+}
+.card h3{
+    margin-bottom:10px;
+    font-size:16px;
+    color:#555;
+}
+.card p{
+    font-size:26px;
+    font-weight:bold;
+    color:#007bff;
+}
+.charts{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:30px;
+    margin-bottom:40px;
+}
+.chart-box{
+    background:white;
+    padding:20px;
+    border-radius:10px;
+    box-shadow:0 5px 15px rgba(0,0,0,0.15);
+}
+table{
+    width:100%;
+    border-collapse:collapse;
+    background:#f2f6ff;
+    box-shadow:0 12px 35px rgba(0,0,0,0.15);
+    border-radius:12px;
+    overflow:hidden;
+    border:2px solid #9fb7ff;
+}
+th{
+    background:linear-gradient(90deg,#007bff,#0056d2);
+    color:white;
+    padding:14px;
+    font-size:14px;
+    letter-spacing:.5px;
+    border-right:2px solid rgba(255,255,255,0.3);
+}
+td{
+    padding:12px;
+    text-align:center;
+    border-bottom:2px solid #c8d6ff;
+    font-size:13px;
+    background:#f8faff;
+}
+th,td{
+    border-right:2px solid #c8d6ff;
+}
+th:last-child,
+td:last-child{
+    border-right:none;
+}
+tr{
+    transition:all .2s ease;
+}
+tr:hover{
+    background:#e9f0ff;
+    transform:scale(1.002);
+}
+.video-card{
+    border-radius:12px;
+    overflow:hidden;
+    box-shadow:0 5px 15px rgba(0,0,0,0.2);
+    transition:all .3s ease;
+    display:inline-block;
+}
+.video-card:hover{
+    transform:scale(1.05);
+    box-shadow:0 10px 25px rgba(0,0,0,0.3);
+}
+video{
+    width:200px;
+    display:block;
+}
+.transcript-box{
+    max-height:90px;
+    overflow-y:auto;
+    background:#eef3ff;
+    padding:10px;
+    border-radius:8px;
+    text-align:left;
+    font-size:12px;
+    border:1px solid #c8d6ff;
+}
+.fake{
+    background:linear-gradient(45deg,#ff4d4d,#ff0000);
+    color:white;
+    padding:6px 14px;
+    border-radius:20px;
+    font-weight:bold;
+    font-size:12px;
+    box-shadow:0 3px 8px rgba(255,0,0,0.3);
+}
+.real{
+    background:linear-gradient(45deg,#28a745,#00c851);
+    color:white;
+    padding:6px 14px;
+    border-radius:20px;
+    font-weight:bold;
+    font-size:12px;
+    box-shadow:0 3px 8px rgba(0,200,0,0.3);
+}
+/* WIND Table Colors */
+.wind-good { background:#28a745; color:white; font-weight:bold; }
+.wind-blur { background:#ff4d4d; color:white; font-weight:bold; }
+.wind-dark { background:#6c757d; color:white; font-weight:bold; }
+.wind-noisy { background:#ffc107; color:white; font-weight:bold; }
+.wind-static { background:#17a2b8; color:white; font-weight:bold; }
+</style>
+</head>
+
+<body>
+
+<h2>AI Video Quality & Fake Detection Dashboard</h2>
+
+<!-- SUMMARY CARDS -->
+<div class="summary-container">
+    <div class="card">
+        <h3>Total Videos</h3>
+        <p>{{ videos|length }}</p>
+    </div>
+    <div class="card">
+        <h3>Fake Videos</h3>
+        <p>{{ fake_count }}</p>
+    </div>
+    <div class="card">
+        <h3>Real Videos</h3>
+        <p>{{ real_count }}</p>
+    </div>
+    <div class="card">
+        <h3>Average Blur</h3>
+        <p>{{ avg_blur }}</p>
+    </div>
+</div>
+
+<!-- CHARTS -->
+<div class="charts">
+    <div class="chart-box">
+        <h3>Fake vs Real Videos</h3>
+        <canvas id="fakeChart"></canvas>
+    </div>
+
+    <div class="chart-box">
+        <h3>Video Quality Metrics</h3>
+        <canvas id="qualityChart"></canvas>
+    </div>
+
+    <div class="chart-box">
+        <h3>Window Analysis (Average Blur per Window)</h3>
+        <canvas id="windowChart"></canvas>
+    </div>
+</div>
+
+<!-- WIND Table -->
+<div class="charts">
+    <div class="chart-box">
+        <h3>WIND: Window-Based Metrics</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Window</th>
+                    <th>Blur</th>
+                    <th>Brightness</th>
+                    <th>Noise</th>
+                    <th>Motion</th>
+                    <th>Quality</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for w in windows %}
+                <tr>
+                    <td>{{ w.window_index }}</td>
+                    <td>{{ w.avg_blur|floatformat:2 }}</td>
+                    <td>{{ w.avg_brightness|floatformat:2 }}</td>
+                    <td>{{ w.avg_noise|floatformat:2 }}</td>
+                    <td>{{ w.avg_motion|floatformat:2 }}</td>
+                    <td class="{% if w.quality == 'Good' %}wind-good{% elif w.quality == 'Blur' %}wind-blur{% elif w.quality == 'Dark' %}wind-dark{% elif w.quality == 'Noisy' %}wind-noisy{% elif w.quality == 'Static' %}wind-static{% endif %}">
+                        {{ w.quality }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- VIDEO TABLE -->
+<table>
+<thead>
+<tr>
+<th>Video</th>
+<th>Duration</th>
+<th>Resolution</th>
+<th>FPS</th>
+<th>Brightness</th>
+<th>Blur</th>
+<th>Noise</th>
+<th>Motion</th>
+<th>Black Frames</th>
+<th>Audio</th>
+<th>Transcript</th>
+<th>Prediction</th>
+</tr>
+</thead>
+<tbody>
+{% for v in videos %}
+<tr>
+<td>
+<div class="video-card">
+<video controls>
+<source src="{{ v.file }}" type="video/mp4">
+</video>
+</div>
+</td>
+<td>{{ v.duration }} s</td>
+<td>{{ v.resolution }}</td>
+<td>{{ v.fps }}</td>
+<td>{{ v.brightness }}</td>
+<td>{{ v.blur_score }}</td>
+<td>{{ v.noise_level }}</td>
+<td>{{ v.motion_level }}</td>
+<td>{{ v.black_frames }}</td>
+<td>{{ v.audio }}</td>
+<td>
+<div class="transcript-box">
+{{ v.transcript }}
+</div>
+</td>
+<td>
+{% if v.is_fake %}
+<span class="fake">FAKE</span>
+{% else %}
+<span class="real">REAL</span>
+{% endif %}
+</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+// FAKE vs REAL
+const fakeChart = new Chart(
+document.getElementById('fakeChart'),
+{
+type:'pie',
+data:{
+labels:['Fake','Real'],
+datasets:[{ data:[{{ fake_count }}, {{ real_count }}] }]
+}
+}
+);
+
+// QUALITY METRICS
+const qualityChart = new Chart(
+document.getElementById('qualityChart'),
+{
+type:'bar',
+data:{
+labels:['Brightness','Blur','Noise','Motion'],
+datasets:[{
+label:'Average Metrics',
+data:[
+{{ avg_brightness }},
+{{ avg_blur }},
+{{ avg_noise }},
+{{ avg_motion }}
+]
+}]
+}
+}
+);
+
+// WINDOW ANALYSIS
+const windowChart = new Chart(
+document.getElementById('windowChart'),
+{
+type:'line',
+data:{
+labels: [
+{% for w in windows %}{{ w.window_index }}{% if not forloop.last %}, {% endif %}{% endfor %}
+],
+datasets:[{
+label: 'Average Blur per Window',
+data: [
+{% for w in windows %}{{ w.avg_blur }}{% if not forloop.last %}, {% endif %}{% endfor %}
+],
+borderColor: '#ff6600',
+backgroundColor: 'rgba(255,102,0,0.2)',
+fill: true,
+tension: 0.3
+}]
+},
+options:{
+responsive:true,
+plugins:{
+legend:{ display:true, position:'top' },
+tooltip:{ enabled:true }
+},
+scales:{
+x:{ title:{ display:true, text:'Window Index' } },
+y:{ title:{ display:true, text:'Average Blur' }, min:0 }
+}
+}
+);
+</script>
+
+</body>
+</html>

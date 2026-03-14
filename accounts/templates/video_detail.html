@@ -1,0 +1,22 @@
+<h2>Video Details</h2>
+
+<p><strong>Video Name:</strong> {{ video.video.name }}</p>
+
+<p><strong>Uploaded At:</strong> {{ video.uploaded_at }}</p>
+
+<p><strong>Result:</strong> {{ video.result_label }}</p>
+
+<p><strong>Confidence:</strong> {{ video.confidence }}%</p>
+
+<p><strong>Transcript:</strong></p>
+<p>{{ video.transcript }}</p>
+
+<br>
+
+<video width="500" controls>
+    <source src="{{ video.video.url }}" type="video/mp4">
+</video>
+
+<br><br>
+
+<a href="/videos/">Back to List</a>

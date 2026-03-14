@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login | OTP System</title>
+    <style>
+        body {
+            margin: 0;
+            height: 100vh;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            font-family: 'Segoe UI', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .card {
+            background: white;
+            width: 380px;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            margin: 12px 0;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 15px;
+            background: #667eea;
+            border: none;
+            color: white;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .google-btn {
+            background: #db4437;
+        }
+
+        .divider {
+            margin: 20px 0;
+            color: gray;
+        }
+    </style>
+</head>
+
+<body>
+<div class="card">
+
+    <h2>Welcome Back 👋</h2>
+    <p>Login using Email OTP</p>
+
+    <!-- OTP LOGIN -->
+    <form method="POST">
+        {% csrf_token %}
+        <input type="email" name="email" placeholder="Enter Email" required>
+        <button type="submit">Send OTP</button>
+    </form>
+
+    {% if error %}
+        <div style="color:red">{{ error }}</div>
+    {% endif %}
+
+    <div class="divider">OR</div>
+
+    <!-- GOOGLE LOGIN -->
+    <a href="/accounts/google/login/">
+        <button class="google-btn">Login with Google</button>
+    </a>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<style>
+/* === Table Styling === */
+table {
+    border-collapse: collapse !important;
+    width: 100%;
+}
+
+/* Outer table border */
+.table {
+    border: 4px solid black !important;
+}
+
+/* Header cells */
+.table th {
+    border: 3px solid black !important;
+    background-color: #343a40 !important; /* dark header */
+    color: white !important;
+    text-align: center;
+}
+
+/* Table cells */
+.table td {
+    border: 3px solid black !important;
+    text-align: center;
+    vertical-align: middle;
+}
+
+/* Row hover effect */
+.table tr:hover {
+    background-color: #f2f2f2;
+}
+
+/* Scrollable transcript box */
+.transcript-box {
+    max-height: 150px;
+    overflow-y: auto;
+    padding: 6px 10px;
+    border: 2px solid #000;
+    border-radius: 5px;
+    background-color: #f9f9f9;
+    font-size: 13px;
+}
+
+/* Status badges */
+.badge-real {
+    background: linear-gradient(45deg, #28a745, #00c851);
+    color: white;
+    font-weight: bold;
+}
+.badge-fake {
+    background: linear-gradient(45deg, #ff4d4d, #ff0000);
+    color: white;
+    font-weight: bold;
+}
+
+/* WIND table colors */
+.wind-good { background:#28a745; color:white; font-weight:bold; }
+.wind-blur { background:#ff4d4d; color:white; font-weight:bold; }
+.wind-dark { background:#6c757d; color:white; font-weight:bold; }
+.wind-noisy { background:#ffc107; color:white; font-weight:bold; }
+.wind-static { background:#17a2b8; color:white; font-weight:bold; }
+</style>
+
+<h2 class="mb-4 text-center">Uploaded Videos</h2>
+
+<div class="card shadow mb-4">
+    <div class="card-body">
+
+        <table class="table table-bordered table-hover align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th>Video</th>
+                    <th>Duration (sec)</th>
+                    <th>Transcript</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for video in videos %}
+                <tr>
+                    <td>
+                        <a href="{{ video.video.url }}" target="_blank" class="text-decoration-none">
+                            ▶ View Video
+                        </a>
+                    </td>
+                    <td>{{ video.duration }}</td>
+                    <td style="max-width: 400px;">
+                        <div class="transcript-box">
+                            {{ video.transcript }}
+                        </div>
+                    </td>
+                    <td>
+                        {% if video.is_fake %}
+                            <span class="badge badge-fake">FAKE</span>
+                        {% else %}
+                            <span class="badge badge-real">REAL</span>
+                        {% endif %}
+                    </td>
+                </tr>
+
+                <!-- WIND Table for this video -->
+                {% for wpv in windows_per_video %}
+                    {% if wpv.video_id == video.id %}
+                    <tr>
+                        <td colspan="4">
+                            <strong>WIND: Window-Based Metrics</strong>
+                            <table class="table table-bordered mt-2">
+                                <thead>
+                                    <tr>
+                                        <th>Window</th>
+                                        <th>Blur</th>
+                                        <th>Brightness</th>
+                                        <th>Noise</th>
+                                        <th>Motion</th>
+                                        <th>Quality</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for w in wpv.windows %}
+                                    <tr>
+                                        <td>{{ w.window_index }}</td>
+                                        <td>{{ w.avg_blur|floatformat:2 }}</td>
+                                        <td>{{ w.avg_brightness|floatformat:2 }}</td>
+                                        <td>{{ w.avg_noise|floatformat:2 }}</td>
+                                        <td>{{ w.avg_motion|floatformat:2 }}</td>
+                                        <td class="{% if w.quality == 'Good' %}wind-good{% elif w.quality == 'Blur' %}wind-blur{% elif w.quality == 'Dark' %}wind-dark{% elif w.quality == 'Noisy' %}wind-noisy{% elif w.quality == 'Static' %}wind-static{% endif %}">
+                                            {{ w.quality }}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </td>
+                    </tr>
+                    {% endif %}
+                {% endfor %}
+
+                {% empty %}
+                <tr>
+                    <td colspan="4">No videos uploaded yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+    </div>
+</div>
+
+{% endblock %}
