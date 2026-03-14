@@ -20,3 +20,4 @@ media/
 # secrets (VERY IMPORTANT)
 firebase_key.json
 accounts/client_secret*.json
+accounts/django-cloud-project*.json
