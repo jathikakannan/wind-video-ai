@@ -217,16 +217,6 @@ cloudinary.config(
 )
 
 
-import os
-import firebase_admin
-from firebase_admin import credentials,auth,firestore
-
-firebase_key_path = "firebase_key.json"
-
-if os.path.exists(firebase_key_path):
-    cred = credentials.Certificate(firebase_key_path)
-    firebase_admin.initialize_app(cred)
-db = firestore.client()
 
 
 MAX_UPLOAD_SIZE = 10  # MB, must not exceed Cloudinary free plan
