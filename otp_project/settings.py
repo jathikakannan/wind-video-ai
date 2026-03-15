@@ -230,3 +230,7 @@ db = firestore.client()
 
 
 MAX_UPLOAD_SIZE = 10  # MB, must not exceed Cloudinary free plan
+import os
+
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATIC_URL = '/static/'
