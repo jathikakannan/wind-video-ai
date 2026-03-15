@@ -18,6 +18,6 @@ media/
 *.pkl
 
 # secrets (VERY IMPORTANT)
-firebase_key.json
+firebase_keys.json
 accounts/client_secret*.json
 accounts/django-cloud-project*.json
