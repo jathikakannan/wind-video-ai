@@ -10,7 +10,7 @@ import os
 from django.conf import settings
 from .utils.metrics import calculate_wer
 from .models import VideoCheck
-
+from otp_project.firebase import save_login_to_cloud, save_logout_to_cloud
 import random
 from datetime import timedelta
 from .utils.metrics import calculate_wer
@@ -67,7 +67,6 @@ def generate_otp():
 def login_view(request):
     user = None  
 
-    
     if request.method == 'POST':
 
         email = request.POST.get('email')
@@ -85,7 +84,12 @@ def login_view(request):
                 username=email.split('@')[0] + str(random.randint(1000, 9999)),
                 email=email
             )
-        save_login_to_cloud(user.email)
+
+        # Save login to Firebase safely
+        try:
+            save_login_to_cloud(user.email)
+        except Exception as e:
+            print("Firebase login save error:", e)
 
         # Delete old OTPs
         OTP.objects.filter(user=user).delete()
@@ -114,20 +118,18 @@ def login_view(request):
         return redirect('verify_otp')
 
     return render(request, 'login.html')
-   
-
-
 from django.contrib.auth import logout
-from firebase_config import save_logout_to_cloud  # cloud function
 
 def logout_view(request):
+
     if request.user.is_authenticated:
-        # ✅ Save logout time in cloud
-        save_logout_to_cloud(request.user.email)
+        try:
+            save_logout_to_cloud(request.user.email)
+        except Exception as e:
+            print("Firebase logout save error:", e)
 
     logout(request)
-    return redirect('login')   # change if your login URL name is different
-
+    return redirect('login')
 
 # VERIFY OTP
 def verify_otp(request):
@@ -1442,3 +1444,12 @@ def get_video_info(video_path):
     cap.release()
 
     return resolution, fps
+# Example: otp_project/app1/views.py
+from otp_project.firebase import db  # import the Firestore client
+
+def example_view(request):
+    # Get all documents from "users" collection
+    docs = db.collection("users").get()
+    
+    users = [doc.to_dict() for doc in docs]
+    return render(request, "example.html", {"users": users})

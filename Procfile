@@ -1,0 +1,1 @@
+web: gunicorn otp_project.wsgi
