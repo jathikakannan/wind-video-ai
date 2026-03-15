@@ -2,17 +2,25 @@ import subprocess
 import json
 from moviepy import VideoFileClip
 import speech_recognition as sr
-from transformers import pipeline
 import cv2
 import numpy as np
 import os
+
+# Only import transformers if not running on Render
+IS_RENDER = os.environ.get("RENDER") is not None
+
+if not IS_RENDER:
+    from transformers import pipeline
 
 # FFmpeg paths
 FFMPEG_PATH = r"C:\ffmpeg\bin\ffmpeg.exe"
 FFPROBE_PATH = r"C:\ffmpeg\bin\ffprobe.exe"
 
-# Load ML model once
-classifier = pipeline("text-classification", model="distilbert-base-uncased")
+# Load ML model only if not on Render
+if not IS_RENDER:
+    classifier = pipeline("text-classification", model="distilbert-base-uncased")
+else:
+    classifier = None
 
 
 # ---------------------------------------
@@ -139,6 +147,10 @@ def check_fake_news(text):
     if not text:
         return {"label":"UNKNOWN","score":0}
 
+    # Skip ML on Render
+    if classifier is None:
+        return {"label":"MODEL_DISABLED_ON_RENDER","score":0}
+
     try:
 
         result = classifier(text[:512])[0]
@@ -259,14 +271,17 @@ def check_video_quality(video_path):
 
 
 # ---------------------------------------
-# 🤖 VIDEO CATEGORY CLASSIFICATION (NLP)
+# 🤖 VIDEO CATEGORY CLASSIFICATION
 # ---------------------------------------
 
-# 🔹 250MB model instead of 1.6GB BART
-category_classifier = pipeline(
-    "zero-shot-classification",
-    model="typeform/distilbert-base-uncased-mnli"
-)
+if not IS_RENDER:
+    category_classifier = pipeline(
+        "zero-shot-classification",
+        model="typeform/distilbert-base-uncased-mnli"
+    )
+else:
+    category_classifier = None
+
 
 CATEGORIES = [
     "education",
@@ -281,6 +296,9 @@ def classify_video(text):
     if not text:
         return "others"
 
+    if category_classifier is None:
+        return "model_disabled"
+
     try:
 
         result = category_classifier(
@@ -293,10 +311,11 @@ def classify_video(text):
     except Exception as e:
         print("Category classification error:", e)
         return "others"
-    
 
-    import cv2
 
+# ---------------------------------------
+# Thumbnail
+# ---------------------------------------
 def generate_thumbnail(video_path):
 
     cap = cv2.VideoCapture(video_path)
@@ -311,6 +330,11 @@ def generate_thumbnail(video_path):
 
     cap.release()
     return None
+
+
+# ---------------------------------------
+# Scene Detection
+# ---------------------------------------
 def detect_scene_changes(video_path):
 
     cap = cv2.VideoCapture(video_path)
@@ -340,6 +364,11 @@ def detect_scene_changes(video_path):
     cap.release()
 
     return scene_changes
+
+
+# ---------------------------------------
+# Total Frames
+# ---------------------------------------
 def get_total_frames(video_path):
 
     cap = cv2.VideoCapture(video_path)
