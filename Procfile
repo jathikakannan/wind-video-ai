@@ -1,1 +1,1 @@
-web: gunicorn otp_project.wsgi
+web: gunicorn otp_project.wsgi:application
