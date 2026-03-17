@@ -31,6 +31,10 @@ urlpatterns = [
     path('advanced-analysis/<int:id>/', views.advanced_video_analysis, name='advanced_analysis'),
     path("video-dashboard/", views.video_dashboard, name="video_dashboard"),
     path("dashboard-data/", views.dashboard_data, name="dashboard_data"),
+        path('generate-report/', views.generate_report, name='generate_report'),  # <- new
+            path('batch-process/', views.batch_process, name='batch_process'),  # ✅ new URL
+
+
 
 
     

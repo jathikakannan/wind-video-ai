@@ -2,14 +2,22 @@ from django.shortcuts import render, redirect
 from django.contrib.auth.models import User
 from .models import OTP, UploadedFile
 import uuid
-from .models import VideoCheck
 import time
 import cv2
 import os
-
+import matplotlib
+matplotlib.use('Agg')  # Use non-GUI backend for server/PDF plotting
+import matplotlib.pyplot as plt
+from .utils.video_checker import (
+    detect_and_save_faces,
+    check_video_quality,
+    extract_audio_text,
+    window_frame_analysis,
+    classify_video
+)
+from .models import VideoCheck 
 from django.conf import settings
 from .utils.metrics import calculate_wer
-from .models import VideoCheck
 from otp_project.firebase import save_login_to_cloud, save_logout_to_cloud
 import random
 from datetime import timedelta
@@ -415,6 +423,7 @@ def upload_file(request):
         if not uploaded_file:
             messages.error(request, "No file selected")
             return redirect('upload_file')
+
         video_size = uploaded_file.size / (1024 * 1024)
 
         # ---------------------------
@@ -467,18 +476,15 @@ def upload_file(request):
             # SPEECH RECOGNITION
             # ---------------------------
             transcript = extract_audio_text(temp_path)
-            # Get decoding method from HTML form
             decoding_method = request.POST.get("decoding_method")
-
-
-            # Reference text for WER
             reference_text = request.POST.get("reference_text")
 
             # WER calculation
             if reference_text:
-                         wer_score = calculate_wer(reference_text, transcript)
+                wer_score = calculate_wer(reference_text, transcript)
             else:
-               wer_score = 0
+                wer_score = 0
+
             # ---------------------------
             # FRAME EXTRACTION
             # ---------------------------
@@ -506,7 +512,6 @@ def upload_file(request):
             # FAKE DETECTION
             # ---------------------------
             fake_result = check_fake_news(transcript)
-
             if fake_result:
                 label = fake_result.get("label", "REAL")
             else:
@@ -518,7 +523,6 @@ def upload_file(request):
             # FIX AUDIO VALUE
             # ---------------------------
             audio_status = quality_data.get("audio")
-
             if audio_status == "Present":
                 audio_value = 1.0
             else:
@@ -527,7 +531,7 @@ def upload_file(request):
             # ---------------------------
             # SAVE ANALYSIS
             # ---------------------------
-            VideoCheck.objects.create(
+            video_record = VideoCheck.objects.create(
                 video=uploaded_file,
                 duration=duration,
                 transcript=transcript,
@@ -540,7 +544,7 @@ def upload_file(request):
                 noise_level=quality_data.get("noise_level"),
                 motion_level=motion_level_value,
                 black_frames=quality_data.get("black_frames"),
-                audio=audio_value,   # FIXED HERE
+                audio=audio_value,
                 quality_label=quality,
                 faces_detected=faces_detected,
                 inference_time=inference_time,
@@ -553,7 +557,6 @@ def upload_file(request):
         # AUTO CATEGORY DETECTION
         # ---------------------------
         text_for_classification = uploaded_file.name
-
         if transcript:
             text_for_classification = transcript
 
@@ -567,7 +570,6 @@ def upload_file(request):
             resource_type="auto",
             folder="user_uploads"
         )
-
         os.remove(temp_path)
 
         # ---------------------------
@@ -630,6 +632,7 @@ def upload_video(request):
         unique_name = f"{uuid.uuid4()}_{uploaded_file.name}"
         temp_path = os.path.join(settings.MEDIA_ROOT, unique_name)
 
+        # Save file temporarily
         with open(temp_path, 'wb+') as f:
             for chunk in uploaded_file.chunks():
                 f.write(chunk)
@@ -655,29 +658,49 @@ def upload_video(request):
         else:
             fake_label = "REAL"
             confidence = 0
-            # ----- WINDOW/FRAME ANALYSIS -----
-        # Compute average blur per window
+
+        # ----- FACE DETECTION -----
+        try:
+            faces_detected, inference_time = detect_faces(temp_path)
+        except Exception as e:
+            print("Face detection error:", e)
+            faces_detected = 0
+            inference_time = 0
+
+        print("Faces detected:", faces_detected)
+
+        # ----- WINDOW/FRAME ANALYSIS -----
         windows = window_frame_analysis(temp_path, window_size=30)  # returns list of avg blur
-        # Convert to list of dicts with index for Chart.js
         windows_data = [{"window_index": i+1, "avg_blur": val} for i, val in enumerate(windows)]
-        # ----------------------------------
-        # Add window data to context
-         
 
+        # ----- SAVE VIDEO CHECK RECORD -----
+        video_record = VideoCheck.objects.create(
+            video=unique_name,  # Or uploaded_file if you want FileField to store original upload
+            duration=duration,
+            transcript=transcript,
+            is_fake=(fake_label.upper() == "FAKE"),
+            resolution=quality_data.get("resolution"),
+            fps=quality_data.get("fps"),
+            brightness=quality_data.get("brightness"),
+            blur_score=quality_data.get("blur_score"),
+            noise_level=quality_data.get("noise_level"),
+            motion_level=quality_data.get("motion_level"),
+            black_frames=quality_data.get("black_frames"),
+            audio=1.0 if quality_data.get("audio") == "Present" else 0.0,
+            quality_label=quality_data.get("quality"),
+            faces_detected=faces_detected,
+            inference_time=inference_time
+        )
 
+        # ----- CONTEXT FOR TEMPLATE -----
         context = {
-
             "info": info,
-
             "resolution": quality_data.get("resolution"),
             "fps": quality_data.get("fps"),
             "duration": duration,
-
             "transcript": transcript,
-
             "fake_label": fake_label,
             "confidence": confidence,
-
             "brightness": quality_data.get("brightness"),
             "blur_score": quality_data.get("blur_score"),
             "noise_level": quality_data.get("noise_level"),
@@ -685,10 +708,8 @@ def upload_video(request):
             "black_frames": quality_data.get("black_frames"),
             "audio": quality_data.get("audio"),
             "quality": quality_data.get("quality"),
-
+            "faces_detected": faces_detected,        # <-- added for template/table
             "video_url": settings.MEDIA_URL + unique_name,
-
-            # Pass windows data to template
             "windows": windows_data
         }
 
@@ -1159,46 +1180,73 @@ from django.shortcuts import render
 from django.db.models import Avg
 from .models import VideoCheck
 
+# accounts/views.py
+
+
+
+# accounts/views.py
+
+from django.shortcuts import render
+from django.db.models import Avg
+from .models import VideoCheck
+
+# accounts/views.py
+from django.shortcuts import render
+from django.db.models import Avg
+from .models import VideoCheck
+
+# accounts/views.py
 def video_dashboard(request):
-    # All videos
-    videos = VideoCheck.objects.all().order_by('-uploaded_at')
+    videos = VideoCheck.objects.all()
 
-    # Summary metrics
-    fake_count = videos.filter(is_fake=True).count()
-    real_count = videos.filter(is_fake=False).count()
+    for v in videos:
+        suggestions = []
 
-    avg_blur = videos.aggregate(Avg('blur_score'))['blur_score__avg'] or 0
-    avg_brightness = videos.aggregate(Avg('brightness'))['brightness__avg'] or 0
-    avg_noise = videos.aggregate(Avg('noise_level'))['noise_level__avg'] or 0
-    avg_motion = videos.aggregate(Avg('motion_level'))['motion_level__avg'] or 0
+        # Blur
+        if v.blur_score is not None:
+            if v.blur_score > 5:
+                suggestions.append("Video is blurry → Use a better camera or adjust focus")
+            elif v.blur_score > 2:
+                suggestions.append("Slight blur detected → Consider stabilization")
 
-    # WIND windows: here you can split video duration into windows or use precomputed windows
-    # For simplicity, we treat each video as a "window"
-    windows = []
-    for idx, v in enumerate(videos, 1):
-        windows.append({
-            'window_index': idx,
-            'avg_blur': v.blur_score or 0,
-            'avg_brightness': v.brightness or 0,
-            'avg_noise': v.noise_level or 0,
-            'avg_motion': v.motion_level or 0,
-            'quality': v.quality_label or 'Good'
-        })
+        # Brightness
+        if v.brightness is not None:
+            if v.brightness < 50:
+                suggestions.append("Low brightness → Increase lighting or adjust exposure")
+            elif v.brightness > 200:
+                suggestions.append("High brightness → Reduce lighting or adjust exposure")
+
+        # Noise
+        if v.noise_level is not None and v.noise_level > 5:
+            suggestions.append("High noise → Reduce background noise or improve mic quality")
+
+        # Motion
+        if v.motion_level is not None and v.motion_level > 10:
+            suggestions.append("Excessive motion → Stabilize camera")
+
+        # Black frames
+        if v.black_frames is not None and v.black_frames > 0:
+            suggestions.append("Black frames detected → Check video encoding or trimming")
+
+        # Fake detection
+        if v.is_fake:
+            suggestions.append("Video flagged as FAKE → Verify source content")
+
+        # Save suggestions in object (for template display)
+        v.suggestion = "\n".join(suggestions) if suggestions else "Video looks good"
 
     context = {
-        'videos': videos,
-        'fake_count': fake_count,
-        'real_count': real_count,
-        'avg_blur': round(avg_blur, 2),
-        'avg_brightness': round(avg_brightness, 2),
-        'avg_noise': round(avg_noise, 2),
-        'avg_motion': round(avg_motion, 2),
-        'windows': windows
+        "videos": videos,
+        "fake_count": videos.filter(is_fake=True).count(),
+        "real_count": videos.filter(is_fake=False).count(),
+        "avg_blur": round(sum(v.blur_score or 0 for v in videos)/len(videos), 2) if videos else 0,
+        "avg_brightness": round(sum(v.brightness or 0 for v in videos)/len(videos), 2) if videos else 0,
+        "avg_noise": round(sum(v.noise_level or 0 for v in videos)/len(videos), 2) if videos else 0,
+        "avg_motion": round(sum(v.motion_level or 0 for v in videos)/len(videos), 2) if videos else 0,
+        "windows": [],  # your window analysis data
     }
 
-    return render(request, 'video_dashboard.html', context)
-
-
+    return render(request, "video_dashboard.html", context)
     from django.db.models import Count, DurationField, ExpressionWrapper, F
 from django.shortcuts import render
 from django.db.models import Count, F, ExpressionWrapper, DurationField
@@ -1264,51 +1312,58 @@ from .models import VideoCheck, UserSession
 from .utils.session_stats import get_user_session_stats
 
 
-def dashboard(request):
 
+from django.shortcuts import render
+from django.utils import timezone
+from django.db.models import Count
+from django.db.models.functions import TruncDate
+from datetime import timedelta
+from .models import VideoCheck, UserSession
+
+def dashboard(request):
     # ===== SESSION STATS =====
-    stats = get_user_session_stats()
+    stats = get_user_session_stats()  # returns dict with 'avg_duration'
 
     # ===== VIDEO DATA =====
-    videos = VideoCheck.objects.all().order_by("-created_at")
-
+    videos = VideoCheck.objects.all().order_by("-uploaded_at")
     total_videos = videos.count()
 
+    # Safely handle None values for inference_time
     avg_time = 0
     if total_videos > 0:
-        avg_time = sum(getattr(v, "inference_time", 0) for v in videos) / total_videos
+        total_inference_time = 0
+        for v in videos:
+            total_inference_time += v.inference_time if v.inference_time is not None else 0
+        avg_time = total_inference_time / total_videos
 
-    total_faces = sum(getattr(v, "faces_detected", 0) for v in videos)
+    # Safely handle None values for faces_detected
+    total_faces = 0
+    for v in videos:
+        total_faces += v.faces_detected if v.faces_detected is not None else 0
 
     # ===== USER ACTIVITY COUNTERS =====
     today = timezone.now().date()
     week_ago = today - timedelta(days=7)
 
-    users_today = UserSession.objects.filter(
-        login_time__date=today
-    ).count()
-
-    users_week = UserSession.objects.filter(
-        login_time__date__gte=week_ago
-    ).count()
+    users_today = UserSession.objects.filter(login_time__date=today).count()
+    users_week = UserSession.objects.filter(login_time__date__gte=week_ago).count()
 
     # ===== VIDEO PROCESSING TIMELINE =====
     video_timeline = (
         VideoCheck.objects
-        .annotate(day=TruncDate("created_at"))
+        .annotate(day=TruncDate('uploaded_at'))
         .values("day")
         .annotate(count=Count("id"))
         .order_by("day")
     )
 
+    # Ensure timeline counts are never None
     timeline_labels = [str(v["day"]) for v in video_timeline]
-    timeline_counts = [v["count"] for v in video_timeline]
+    timeline_counts = [v["count"] if v["count"] is not None else 0 for v in video_timeline]
 
     # ===== CONTEXT =====
     context = {
-
-        # session analytics
-        "avg_session_minutes": stats["avg_duration"],
+        "avg_session_minutes": stats.get("avg_duration", 0),
 
         # video analytics
         "videos": videos,
@@ -1453,3 +1508,138 @@ def example_view(request):
     
     users = [doc.to_dict() for doc in docs]
     return render(request, "example.html", {"users": users})
+# accounts/views.py
+
+# accounts/views.py
+# accounts/views.py
+from django.template.loader import render_to_string
+from django.http import HttpResponse
+from xhtml2pdf import pisa
+import datetime
+import matplotlib.pyplot as plt
+import io
+import base64
+
+from django.shortcuts import redirect
+from django.contrib.auth.decorators import login_required
+from .models import UploadedFile, VideoCheck  # Ensure correct import
+
+# ------------------------
+# PDF Report Generation
+# ------------------------
+@login_required
+
+
+
+
+def generate_report(request):
+    if request.method == "POST":
+        # Get video IDs sent from batch process
+        video_ids = request.POST.getlist('video_ids')  # e.g. ['12','13']
+        if not video_ids:
+            return HttpResponse("No videos selected for report", status=400)
+
+        videos = VideoCheck.objects.filter(id__in=video_ids)
+
+        # ------------------------
+        # Generate suggestions for each video
+        # ------------------------
+        for v in videos:
+            suggestions = []
+            if v.blur_score is not None:
+                if v.blur_score > 5: 
+                    suggestions.append("Video is blurry → Use better camera or adjust focus")
+                elif v.blur_score > 2: 
+                    suggestions.append("Slight blur → Consider stabilization")
+            if v.brightness is not None:
+                if v.brightness < 50: 
+                    suggestions.append("Low brightness → Increase lighting")
+                elif v.brightness > 200: 
+                    suggestions.append("High brightness → Reduce lighting")
+            if v.noise_level is not None and v.noise_level > 5:
+                suggestions.append("High noise → Improve mic quality")
+            if v.motion_level is not None and v.motion_level > 10:
+                suggestions.append("Excessive motion → Stabilize camera")
+            if v.black_frames is not None and v.black_frames > 0:
+                suggestions.append("Black frames detected → Check video trimming/encoding")
+            if v.is_fake:
+                suggestions.append("Video flagged as FAKE → Verify source content")
+            v.suggestion = "\n".join(suggestions) if suggestions else "Video looks good"
+
+        # ------------------------
+        # Charts for only these videos
+        # ------------------------
+        fake_count = sum(v.is_fake for v in videos)
+        real_count = len(videos) - fake_count
+
+        # Pie chart
+        fig1, ax1 = plt.subplots(figsize=(3,3))
+        ax1.pie([fake_count, real_count], labels=['Fake','Real'], autopct='%1.1f%%', colors=['#ff4d4d','#28a745'])
+        ax1.set_title("Fake vs Real Videos")
+        buf1 = io.BytesIO()
+        fig1.savefig(buf1, format='png', bbox_inches='tight')
+        buf1.seek(0)
+        pie_chart = base64.b64encode(buf1.getvalue()).decode('utf-8')
+        plt.close(fig1)
+
+        # Bar chart
+        avg_brightness = sum(v.brightness or 0 for v in videos)/len(videos) if videos else 0
+        avg_blur = sum(v.blur_score or 0 for v in videos)/len(videos) if videos else 0
+        avg_noise = sum(v.noise_level or 0 for v in videos)/len(videos) if videos else 0
+        avg_motion = sum(v.motion_level or 0 for v in videos)/len(videos) if videos else 0
+
+        fig2, ax2 = plt.subplots(figsize=(5,3))
+        ax2.bar(['Brightness','Blur','Noise','Motion'], 
+                [avg_brightness, avg_blur, avg_noise, avg_motion],
+                color=['#007bff','#ff6600','#ffc107','#17a2b8'])
+        ax2.set_ylabel('Average Value')
+        ax2.set_title("Video Quality Metrics")
+        buf2 = io.BytesIO()
+        fig2.savefig(buf2, format='png', bbox_inches='tight')
+        buf2.seek(0)
+        bar_chart = base64.b64encode(buf2.getvalue()).decode('utf-8')
+        plt.close(fig2)
+
+        # ------------------------
+        # Render PDF
+        # ------------------------
+        html = render_to_string('video_report.html', {
+            'videos': videos,
+            'now': datetime.datetime.now(),
+            'pie_chart': pie_chart,
+            'bar_chart': bar_chart,
+        })
+
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = 'attachment; filename="video_report.pdf"'
+        pisa_status = pisa.CreatePDF(html, dest=response)
+        if pisa_status.err:
+            return HttpResponse("Error generating PDF", status=500)
+
+        return response  # return PDF response
+    return HttpResponse("Invalid request", status=400)
+# Batch Process Videos
+# ------------------------
+@login_required
+def batch_process(request):
+    if request.method == "POST":
+        files = request.FILES.getlist("videos")  # gets multiple uploaded files
+        for f in files:
+            # Save in UploadedFile model
+            UploadedFile.objects.create(
+                user=request.user,
+                title=f.name,
+                file=f,              # file field in UploadedFile
+                file_type=f.content_type,
+                size_mb=f.size / (1024*1024)
+            )
+
+            # Optional: also create VideoCheck for analysis (auto suggestion)
+            VideoCheck.objects.create(
+                video=f,
+                duration=None,       # fill after analysis
+                resolution=None,
+                fps=None
+            )
+        return redirect("video_dashboard")  # redirect back to dashboard
+    return redirect("video_dashboard")

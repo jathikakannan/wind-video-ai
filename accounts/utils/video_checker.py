@@ -1,30 +1,63 @@
 import subprocess
 import json
+import os
 from moviepy import VideoFileClip
 import speech_recognition as sr
 import cv2
 import numpy as np
-import os
 
-# Only import transformers if not running on Render
+from accounts.models import VideoCheck  # correct import for VideoCheck
+
+# Detect Render environment
+# Detect Render environment
 IS_RENDER = os.environ.get("RENDER") is not None
 
-if not IS_RENDER:
-    from transformers import pipeline
+# Lazy model variables
+classifier = None
+category_classifier = None
 
 # FFmpeg paths
-FFMPEG_PATH = r"C:\ffmpeg\bin\ffmpeg.exe"
-FFPROBE_PATH = r"C:\ffmpeg\bin\ffprobe.exe"
+import os
 
-# Load ML model only if not on Render
-if not IS_RENDER:
-    classifier = pipeline("text-classification", model="distilbert-base-uncased")
+IS_RENDER = os.environ.get("RENDER") is not None
+
+if IS_RENDER:
+    FFMPEG_PATH = "/usr/bin/ffmpeg"
+    FFPROBE_PATH = "/usr/bin/ffprobe"
 else:
-    classifier = None
+    FFMPEG_PATH = r"C:\ffmpeg\bin\ffmpeg.exe"
+    FFPROBE_PATH = r"C:\ffmpeg\bin\ffprobe.exe"
+# ---------------------------------------
+# LAZY LOAD TRANSFORMER MODELS
+# ---------------------------------------
+def get_classifier():
+    global classifier
+
+    if classifier is None and not IS_RENDER:
+        from transformers import pipeline
+        classifier = pipeline(
+            "text-classification",
+            model="distilbert-base-uncased"
+        )
+
+    return classifier
+
+
+def get_category_classifier():
+    global category_classifier
+
+    if category_classifier is None and not IS_RENDER:
+        from transformers import pipeline
+        category_classifier = pipeline(
+            "zero-shot-classification",
+            model="typeform/distilbert-base-uncased-mnli"
+        )
+
+    return category_classifier
 
 
 # ---------------------------------------
-# 🎥 VIDEO INFO (Resolution, FPS, Codec)
+# 🎥 VIDEO INFO
 # ---------------------------------------
 def get_video_info(video_path):
 
@@ -79,7 +112,7 @@ def get_video_info(video_path):
 
 
 # ---------------------------------------
-# 📐 RESOLUTION
+# RESOLUTION
 # ---------------------------------------
 def get_video_resolution(video_path):
 
@@ -92,7 +125,7 @@ def get_video_resolution(video_path):
 
 
 # ---------------------------------------
-# ⏱️ DURATION
+# DURATION
 # ---------------------------------------
 def get_video_duration(video_path):
 
@@ -107,7 +140,7 @@ def get_video_duration(video_path):
 
 
 # ---------------------------------------
-# 🎤 AUDIO → TEXT
+# AUDIO → TEXT
 # ---------------------------------------
 def extract_audio_text(video_path):
 
@@ -127,7 +160,6 @@ def extract_audio_text(video_path):
         r = sr.Recognizer()
 
         with sr.AudioFile(audio_path) as source:
-
             audio = r.record(source)
             text = r.recognize_google(audio)
 
@@ -140,20 +172,21 @@ def extract_audio_text(video_path):
 
 
 # ---------------------------------------
-# 🧠 FAKE NEWS CHECK
+# FAKE NEWS CHECK
 # ---------------------------------------
 def check_fake_news(text):
 
     if not text:
         return {"label":"UNKNOWN","score":0}
 
-    # Skip ML on Render
-    if classifier is None:
+    model = get_classifier()
+
+    if model is None:
         return {"label":"MODEL_DISABLED_ON_RENDER","score":0}
 
     try:
 
-        result = classifier(text[:512])[0]
+        result = model(text[:512])[0]
 
         label = result["label"]
         score = result["score"]
@@ -168,7 +201,7 @@ def check_fake_news(text):
 
 
 # ---------------------------------------
-# 🎥 VIDEO QUALITY ANALYSIS
+# VIDEO QUALITY ANALYSIS
 # ---------------------------------------
 def check_video_quality(video_path):
 
@@ -210,7 +243,6 @@ def check_video_quality(video_path):
             black_frames += 1
 
         if prev_frame is not None:
-
             diff = cv2.absdiff(prev_frame, gray)
             motion_scores.append(np.mean(diff))
 
@@ -223,12 +255,7 @@ def check_video_quality(video_path):
     avg_noise = np.mean(noise_scores) if noise_scores else 0
     avg_motion = np.mean(motion_scores) if motion_scores else 0
 
-    if avg_motion < 2:
-        motion_level = "Low"
-    elif avg_motion < 10:
-        motion_level = "Medium"
-    else:
-        motion_level = "High"
+    motion_level = "Low" if avg_motion < 2 else "Medium" if avg_motion < 10 else "High"
 
     quality = "GOOD"
 
@@ -253,36 +280,22 @@ def check_video_quality(video_path):
         audio_status = "Unknown"
 
     return {
-
         "resolution": f"{width}x{height}",
         "fps": round(fps,2),
         "frames": frame_count,
-
         "brightness": round(avg_brightness,2),
         "blur_score": round(avg_blur,2),
         "noise_level": round(avg_noise,2),
-
         "motion_level": motion_level,
         "black_frames": black_frames,
-
         "audio": audio_status,
         "quality": quality
     }
 
 
 # ---------------------------------------
-# 🤖 VIDEO CATEGORY CLASSIFICATION
+# VIDEO CATEGORY CLASSIFICATION
 # ---------------------------------------
-
-if not IS_RENDER:
-    category_classifier = pipeline(
-        "zero-shot-classification",
-        model="typeform/distilbert-base-uncased-mnli"
-    )
-else:
-    category_classifier = None
-
-
 CATEGORIES = [
     "education",
     "songs",
@@ -296,12 +309,14 @@ def classify_video(text):
     if not text:
         return "others"
 
-    if category_classifier is None:
+    model = get_category_classifier()
+
+    if model is None:
         return "model_disabled"
 
     try:
 
-        result = category_classifier(
+        result = model(
             text[:200],
             candidate_labels=CATEGORIES
         )
@@ -378,3 +393,55 @@ def get_total_frames(video_path):
     cap.release()
 
     return frames
+      # make sure path is correct
+
+def detect_and_save_faces(video_path, video_file=None):
+    face_cascade = cv2.CascadeClassifier(
+        cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    )
+
+    cap = cv2.VideoCapture(video_path)
+    frame_count = 0
+    faces_detected = 0
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        frame_count += 1
+        if frame_count % 10 != 0:  # process every 10th frame
+            continue
+
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.3, minNeighbors=5)
+        faces_detected += len(faces)
+
+    cap.release()
+    print("Faces detected:", faces_detected)
+
+    # Save to DB
+    if video_file:
+        VideoCheck.objects.create(
+            video=video_file,
+            faces_detected=faces_detected
+        )
+
+    return faces_detected
+# Keep backward compatibility
+# At the bottom of accounts/utils/video_checker.py
+
+def video_analysis(video_path, video_file=None):
+    """Perform complete video analysis: quality, faces, and scenes."""
+    quality = check_video_quality(video_path)
+    faces = detect_and_save_faces(video_path, video_file)
+    scenes = detect_scene_changes(video_path)
+
+    return {
+        "quality": quality,
+        "faces_detected": faces,
+        "scene_changes": scenes
+    }
+
+# Alias for backward compatibility with views.py
+window_frame_analysis = video_analysis

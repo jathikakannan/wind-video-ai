@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AI Video Analysis Report</title>
+<style>
+/* General Styles */
+body { 
+    font-family: Arial, sans-serif; 
+    margin: 20px; 
+    color: #333;
+    font-size: 12px;
+}
+h1, h2, h3 { 
+    color: #007bff; 
+    margin-bottom: 10px; 
+}
+p { margin: 5px 0; font-size: 12px; }
+
+/* Charts */
+.charts { 
+    display: flex; 
+    align-items: flex-start; 
+    margin-bottom: 20px; 
+    flex-wrap: wrap;
+}
+.charts img { 
+    margin-right: 20px; 
+    margin-bottom: 10px;
+    border: 1px solid #ccc; 
+    padding: 5px; 
+    background: #fff; 
+}
+
+/* Table Styles */
+.table-container {
+    overflow-x: auto;
+}
+table { 
+    width: 100%; 
+    border-collapse: collapse; 
+    margin-top: 10px; 
+    page-break-inside: auto;
+    table-layout: fixed;
+}
+thead { 
+    background: #007bff; 
+    color: white; 
+}
+th, td { 
+    border: 1px solid #ccc; 
+    padding: 8px; 
+    font-size: 11px; 
+    text-align: center; 
+    vertical-align: middle;
+    word-wrap: break-word;
+}
+th { 
+    font-size: 12px; 
+}
+tbody tr:nth-child(even) { 
+    background: #f2f2f2; 
+}
+
+/* Suggestions Column */
+.suggestion { 
+    text-align: left; 
+    white-space: pre-wrap; 
+    font-size: 11px; 
+    line-height: 1.2em;
+}
+
+/* Prediction Labels */
+.fake {
+    color: #ff4d4d;
+    font-weight: bold;
+}
+.real {
+    color: #28a745;
+    font-weight: bold;
+}
+
+/* Page Breaks for PDF */
+@media print {
+    table { page-break-after: auto; }
+    tr    { page-break-inside: avoid; page-break-after: auto; }
+    td    { page-break-inside: avoid; page-break-after: auto; }
+}
+</style>
+</head>
+<body>
+
+<h1>AI Video Analysis Report</h1>
+<p>Generated at: {{ now }}</p>
+
+<h2>Charts</h2>
+<div class="charts">
+    <img src="data:image/png;base64,{{ pie_chart }}" width="250" alt="Fake vs Real Pie Chart">
+    <img src="data:image/png;base64,{{ bar_chart }}" width="400" alt="Video Quality Bar Chart">
+</div>
+
+<h2>Video Details & Suggestions</h2>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th style="width:4%">ID</th>
+<th style="width:15%">Video Name</th>
+<th style="width:6%">Duration</th>
+<th style="width:8%">Resolution</th>
+<th style="width:5%">FPS</th>
+<th style="width:7%">Brightness</th>
+<th style="width:7%">Blur</th>
+<th style="width:7%">Noise</th>
+<th style="width:7%">Motion</th>
+<th style="width:6%">Prediction</th>
+<th style="width:23%">Suggestions</th>
+</tr>
+</thead>
+<tbody>
+{% for v in videos %}
+<tr>
+<td>{{ v.id }}</td>
+<td>{{ v.video.name|truncatechars:20 }}</td>
+<td>{{ v.duration|default:"-" }}</td>
+<td>{{ v.resolution|default:"-" }}</td>
+<td>{{ v.fps|default:"-" }}</td>
+<td>{{ v.brightness|default:"-" }}</td>
+<td>{{ v.blur_score|default:"-" }}</td>
+<td>{{ v.noise_level|default:"-" }}</td>
+<td>{{ v.motion_level|default:"-" }}</td>
+<td>
+{% if v.is_fake %}
+<span class="fake">FAKE</span>
+{% else %}
+<span class="real">REAL</span>
+{% endif %}
+</td>
+<td class="suggestion">{{ v.suggestion|default:"No suggestions"|linebreaksbr }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+
+</body>
+</html>

@@ -34,40 +34,30 @@ class UploadedFile(models.Model):
 # Video Check / Analysis Model
 # ----------------------------
 class VideoCheck(models.Model):
-
     video = models.FileField(upload_to="videos/")
+    uploaded_at = models.DateTimeField(auto_now_add=True)
     duration = models.FloatField(blank=True, null=True)
-
     transcript = models.TextField(blank=True, null=True)
     reference_text = models.TextField(blank=True, null=True)
-
     decoding_method = models.CharField(max_length=20, blank=True, null=True)
-
     wer_score = models.FloatField(blank=True, null=True)
-
     is_fake = models.BooleanField(default=False)
-
     resolution = models.CharField(max_length=20, blank=True, null=True)
     fps = models.FloatField(blank=True, null=True)
-
     brightness = models.FloatField(blank=True, null=True)
     blur_score = models.FloatField(blank=True, null=True)
     noise_level = models.FloatField(blank=True, null=True)
-
     motion_level = models.FloatField(blank=True, null=True)
     black_frames = models.IntegerField(blank=True, null=True)
-
     audio = models.FloatField(blank=True, null=True)
-
     quality_label = models.CharField(max_length=50, blank=True, null=True)
-
     faces_detected = models.IntegerField(default=0)
-
     inference_time = models.FloatField(blank=True, null=True)
-
     size_mb = models.FloatField(blank=True, null=True)
+    suggestion = models.TextField(blank=True, null=True) 
+    file = models.FileField(upload_to='uploads/')  # instead of TextField # <-- for dashboard AI suggestions
 
-    created_at = models.DateTimeField(auto_now_add=True)  
+
     def __str__(self):
         return f"Video {self.id} - {self.video.name}"
 
@@ -78,7 +68,7 @@ class UserSession(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     login_time = models.DateTimeField(default=timezone.now)
     logout_time = models.DateTimeField(blank=True, null=True)
-    ip_address = models.GenericIPAddressField(blank=True, null=True)  # matches your admin.py
+    ip_address = models.GenericIPAddressField(blank=True, null=True)
 
     def __str__(self):
         return f"{self.user.email} | {self.login_time} - {self.logout_time}"
